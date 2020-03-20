@@ -1,5 +1,5 @@
 #import "RNAudioRecord.h"
-
+// limitations under the License.
 @implementation RNAudioRecord
 
 RCT_EXPORT_MODULE();
@@ -87,7 +87,7 @@ void HandleInputBuffer(void *inUserData,
     
     short *samples = (short *) inBuffer->mAudioData;
     long nsamples = inBuffer->mAudioDataByteSize;
-    NSData *data = [NSData dataWithBytes:samples length:nsamples];
+    NSData *data = [NSData dataWithBytes:samples length:16000];
     NSString *str = [data base64EncodedStringWithOptions:0];
     [pRecordState->mSelf sendEventWithName:@"data" body:str];
     
