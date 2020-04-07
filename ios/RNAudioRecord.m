@@ -23,6 +23,8 @@ RCT_EXPORT_METHOD(init:(NSDictionary *) options) {
     NSString *fileName = options[@"wavFile"] == nil ? @"audio.wav" : options[@"wavFile"];
     NSString *docDir = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
     _filePath = [NSString stringWithFormat:@"%@/%@", docDir, fileName];
+    _filePath =fileName;
+     RCTLogInfo(@"file path %@", _filePath);
 }
 
 RCT_EXPORT_METHOD(start) {
