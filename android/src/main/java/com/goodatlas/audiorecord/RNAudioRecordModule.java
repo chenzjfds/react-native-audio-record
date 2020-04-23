@@ -1,6 +1,11 @@
 package com.goodatlas.audiorecord;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.media.AudioFormat;
+import android.media.AudioManager;
 import android.media.AudioRecord;
 import android.media.MediaRecorder.AudioSource;
 import android.util.Base64;
@@ -35,8 +40,30 @@ public class RNAudioRecordModule extends ReactContextBaseJavaModule {
     private String tmpFile;
     private String outFile;
     private Promise stopRecordingPromise;
+    private AudioManager mAudioManager;
+    private boolean isBluetoothSco;
+    private void initBlueSco(){
+        mAudioManager = (AudioManager) this.reactContext.getSystemService(Context.AUDIO_SERVICE);
+        this.reactContext. registerReceiver(new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                int state = intent.getIntExtra(AudioManager.EXTRA_SCO_AUDIO_STATE, -1);
+                Log.e(TAG, "state-->" + state);
+                Log.e(TAG, "stateaaaa-->" + AudioManager.SCO_AUDIO_STATE_CONNECTED);
+                if (AudioManager.SCO_AUDIO_STATE_CONNECTED == state) {
+                    mAudioManager.setBluetoothScoOn(true);
+                    isBluetoothSco = true;
+                    //TODO: state==1之后才可以调用识别录音接口！！
+                    context.unregisterReceiver(this);
+                }
+            }
+        }, new IntentFilter(AudioManager.ACTION_SCO_AUDIO_STATE_UPDATED));
 
+        mAudioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
+        mAudioManager.stopBluetoothSco();
+        mAudioManager.startBluetoothSco();
 
+    }
     public RNAudioRecordModule(ReactApplicationContext reactContext) {
         super(reactContext);
         this.reactContext = reactContext;
@@ -89,6 +116,7 @@ public class RNAudioRecordModule extends ReactContextBaseJavaModule {
         bufferSize= 16000;
         int recordingBufferSize = bufferSize * 3;
         recorder = new AudioRecord(audioSource, sampleRateInHz, channelConfig, audioFormat, recordingBufferSize);
+        initBlueSco();
     }
 
     @ReactMethod
