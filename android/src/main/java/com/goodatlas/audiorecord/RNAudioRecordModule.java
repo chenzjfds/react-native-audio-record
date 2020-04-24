@@ -1,5 +1,7 @@
 package com.goodatlas.audiorecord;
 
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -10,6 +12,7 @@ import android.media.AudioRecord;
 import android.media.MediaRecorder.AudioSource;
 import android.util.Base64;
 import android.util.Log;
+import android.widget.Toast;
 
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
@@ -17,7 +20,7 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
-
+import android.os.SystemClock;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -42,31 +45,48 @@ public class RNAudioRecordModule extends ReactContextBaseJavaModule {
     private Promise stopRecordingPromise;
     private AudioManager mAudioManager;
     private boolean isBluetoothSco;
+   private  BluetoothMonitorReceiver bleListenerReceiver;
     private void initBlueSco(){
+        Log.e(TAG, "initBlueSco");
+
         mAudioManager = (AudioManager) this.reactContext.getSystemService(Context.AUDIO_SERVICE);
         this.reactContext. registerReceiver(new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 int state = intent.getIntExtra(AudioManager.EXTRA_SCO_AUDIO_STATE, -1);
                 Log.e(TAG, "state-->" + state);
-                Log.e(TAG, "stateaaaa-->" + AudioManager.SCO_AUDIO_STATE_CONNECTED);
                 if (AudioManager.SCO_AUDIO_STATE_CONNECTED == state) {
                     mAudioManager.setBluetoothScoOn(true);
                     isBluetoothSco = true;
+                    Log.e(TAG, "state2-->" + state);
                     //TODO: state==1之后才可以调用识别录音接口！！
                     context.unregisterReceiver(this);
                 }
             }
         }, new IntentFilter(AudioManager.ACTION_SCO_AUDIO_STATE_UPDATED));
 
-        mAudioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
+        // mAudioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);//从手机的喇叭进行播放
         mAudioManager.stopBluetoothSco();
         mAudioManager.startBluetoothSco();
 
     }
+    private void stopBlueSco(){
+        mAudioManager.stopBluetoothSco();
+    }
     public RNAudioRecordModule(ReactApplicationContext reactContext) {
         super(reactContext);
         this.reactContext = reactContext;
+        bleListenerReceiver =new BluetoothMonitorReceiver();
+        IntentFilter intentFilter = new IntentFilter();
+        // 监视蓝牙关闭和打开的状态
+        intentFilter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
+
+        // 监视蓝牙设备与APP连接的状态
+        intentFilter.addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED);
+        intentFilter.addAction(BluetoothDevice.ACTION_ACL_CONNECTED);
+
+        // 注册广播
+        this.reactContext.registerReceiver(this.bleListenerReceiver, intentFilter);
     }
 
     @Override
@@ -115,8 +135,9 @@ public class RNAudioRecordModule extends ReactContextBaseJavaModule {
         // bufferSize = AudioRecord.getMinBufferSize(sampleRateInHz, channelConfig, audioFormat);
         bufferSize= 16000;
         int recordingBufferSize = bufferSize * 3;
-        recorder = new AudioRecord(audioSource, sampleRateInHz, channelConfig, audioFormat, recordingBufferSize);
         initBlueSco();
+        recorder = new AudioRecord(audioSource, sampleRateInHz, channelConfig, audioFormat, recordingBufferSize);
+       
     }
 
     @ReactMethod
@@ -251,5 +272,55 @@ public class RNAudioRecordModule extends ReactContextBaseJavaModule {
     private void deleteTempFile() {
         File file = new File(tmpFile);
         file.delete();
+    }
+
+    class BluetoothMonitorReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+        String action = intent.getAction();
+        Log.i(TAG,"BluetoothMonitorReceiver action="+action);
+        if(!isRecording){
+            Log.i(TAG,"BluetoothMonitorReceiver 当前没有录音");
+            return;
+        }
+        if(action != null){
+        switch (action) {
+        case BluetoothAdapter.ACTION_STATE_CHANGED:
+            
+            int blueState = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, 0);
+            Log.i(TAG,"BluetoothMonitorReceiver blueState="+blueState);
+            switch (blueState) {
+            case BluetoothAdapter.STATE_TURNING_ON:
+//            Toast.makeText(context,"蓝牙正在打开",Toast.LENGTH_SHORT).show();
+            break;
+            case BluetoothAdapter.STATE_ON:
+//             Toast.makeText(context,"蓝牙已经打开",Toast.LENGTH_SHORT).show();
+
+            break;
+            case BluetoothAdapter.STATE_TURNING_OFF:
+//            Toast.makeText(context,"蓝牙正在关闭",Toast.LENGTH_SHORT).show();
+stopBlueSco();
+            break;
+            case BluetoothAdapter.STATE_OFF:
+//            Toast.makeText(context,"蓝牙已经关闭",Toast.LENGTH_SHORT).show();
+
+            break;
+        }
+        break;
+        
+        case BluetoothDevice.ACTION_ACL_CONNECTED:
+//        Toast.makeText(context,"蓝牙设备已连接",Toast.LENGTH_SHORT).show();
+          SystemClock.sleep(1000);
+          initBlueSco();
+        break;
+        
+        case BluetoothDevice.ACTION_ACL_DISCONNECTED:
+        stopBlueSco();
+//        Toast.makeText(context,"蓝牙设备已断开",Toast.LENGTH_SHORT).show();
+        break;
+        }
+        
+        }
+        }
     }
 }
